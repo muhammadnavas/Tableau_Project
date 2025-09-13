@@ -2,31 +2,63 @@ import requests
 import csv
 from datetime import datetime
 
-owner = "microsoft"
-repo = "vscode"
-filename = "vscode_repo_stats.csv"
+# GitHub username
+username = 'muhammadnavas'
 
-url = f"https://api.github.com/repos/{owner}/{repo}"
-headers = {}  # No token used
+# Optional: Add your personal access token here if needed (for higher rate limits)
+# token = 'YOUR_PERSONAL_ACCESS_TOKEN'
+# headers = {
+#     'Authorization': f'token {token}'
+# }
 
-response = requests.get(url, headers=headers)
-print("Status Code:", response.status_code)
-print("Response:", response.text)
+headers = {
+    'Accept': 'application/vnd.github.v3+json'
+}
 
-data = response.json()
+# List to store all repositories data
+repo_data = []
 
-repo_name = data.get("full_name", "")
-stars = data.get("stargazers_count", 0)
-forks = data.get("forks_count", 0)
-watchers = data.get("watchers_count", 0)
-open_issues = data.get("open_issues_count", 0)
-last_push = data.get("pushed_at", "")
-fetch_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+# Pagination setup
+page = 1
+per_page = 100  # maximum allowed by GitHub API
 
-with open(filename, "a", newline="") as f:
-    writer = csv.writer(f)
-    if f.tell() == 0:
-        writer.writerow(["repo_name", "stars", "forks", "watchers", "open_issues", "last_push", "fetch_time"])
-    writer.writerow([repo_name, stars, forks, watchers, open_issues, last_push, fetch_time])
+print("Fetching repository data...")
 
-print("Repo stats updated!")
+while True:
+    url = f'https://api.github.com/users/{username}/repos?per_page={per_page}&page={page}'
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        print("Failed to fetch data. Status code:", response.status_code)
+        print(response.json())
+        break
+
+    repos = response.json()
+    
+    if not repos:
+        print("All repositories fetched.")
+        break
+
+    for repo in repos:
+        repo_data.append([
+            repo['name'],
+            repo['stargazers_count'],
+            repo['forks_count'],
+            repo['watchers_count'],
+            repo['open_issues_count'],
+            repo['pushed_at']
+        ])
+    
+    print(f"Page {page} fetched with {len(repos)} repositories.")
+    page += 1
+
+# CSV file path
+csv_file = 'github_repos.csv'
+
+# Write data to CSV
+with open(csv_file, 'w', newline='', encoding='utf-8') as file:
+    writer = csv.writer(file)
+    writer.writerow(['Name', 'Stars', 'Forks', 'Watchers', 'Open Issues', 'Last Push'])
+    writer.writerows(repo_data)
+
+print(f"\nCSV file '{csv_file}' created successfully with {len(repo_data)} repositories.")

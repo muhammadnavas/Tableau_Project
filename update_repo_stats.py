@@ -1,26 +1,12 @@
 import requests
 import csv
-from datetime import datetime
 
-# GitHub username
 username = 'muhammadnavas'
+headers = {'Accept': 'application/vnd.github.v3+json'}
 
-# Optional: Add your personal access token here if needed (for higher rate limits)
-# token = 'YOUR_PERSONAL_ACCESS_TOKEN'
-# headers = {
-#     'Authorization': f'token {token}'
-# }
-
-headers = {
-    'Accept': 'application/vnd.github.v3+json'
-}
-
-# List to store all repositories data
 repo_data = []
-
-# Pagination setup
 page = 1
-per_page = 100  # maximum allowed by GitHub API
+per_page = 100
 
 print("Fetching repository data...")
 
@@ -29,36 +15,64 @@ while True:
     response = requests.get(url, headers=headers)
     
     if response.status_code != 200:
-        print("Failed to fetch data. Status code:", response.status_code)
-        print(response.json())
+        print(f"Error fetching page {page}. Status code:", response.status_code)
         break
 
     repos = response.json()
-    
     if not repos:
-        print("All repositories fetched.")
         break
 
     for repo in repos:
+        repo_name = repo['name']
+
+        # Count total commits
+        total_commits = 0
+        merge_commits = 0
+        commits_page = 1
+
+        while True:
+            commits_url = f"https://api.github.com/repos/{username}/{repo_name}/commits?per_page=100&page={commits_page}"
+            commits_response = requests.get(commits_url, headers=headers)
+            if commits_response.status_code != 200:
+                total_commits = 'N/A'
+                merge_commits = 'N/A'
+                break
+
+            commits = commits_response.json()
+            if not commits:
+                break
+
+            total_commits += len(commits)
+            merge_commits += sum(1 for c in commits if 'Merge' in c['commit']['message'])
+            commits_page += 1
+
         repo_data.append([
-            repo['name'],
+            repo_name,
+            repo['language'],
+            repo['created_at'],
+            repo['updated_at'],
+            total_commits,
+            merge_commits,
             repo['stargazers_count'],
             repo['forks_count'],
             repo['watchers_count'],
             repo['open_issues_count'],
-            repo['pushed_at']
+            repo['default_branch'],
+            repo['pushed_at'],
+            repo['html_url']
         ])
-    
-    print(f"Page {page} fetched with {len(repos)} repositories.")
     page += 1
 
-# CSV file path
-csv_file = 'github_repos.csv'
+csv_file = 'github_repos_total_commits.csv'
 
-# Write data to CSV
 with open(csv_file, 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
-    writer.writerow(['Name', 'Stars', 'Forks', 'Watchers', 'Open Issues', 'Last Push'])
+    writer.writerow([
+        'Name', 'Language', 'Created At', 'Updated At',
+        'Total Commits', 'Merge Commits',
+        'Stars', 'Forks', 'Watchers', 'Open Issues',
+        'Default Branch', 'Last Push', 'URL'
+    ])
     writer.writerows(repo_data)
 
-print(f"\nCSV file '{csv_file}' created successfully with {len(repo_data)} repositories.")
+print(f"CSV '{csv_file}' created successfully with {len(repo_data)} repositories.")
